@@ -52,7 +52,7 @@ class ConfluenceEngine:
     # ---------------------------------------------------------
     @staticmethod
     def compute_volatility_score(df):
-        from volatility import Volatility
+        from trading_core.volatility import Volatility
         # print("Volatility check:", df.iloc[-1]["close"])
 
         return Volatility.compute_volatility_score(df)
@@ -62,7 +62,7 @@ class ConfluenceEngine:
     # ---------------------------------------------------------
     @staticmethod
     def compute_trend_score(df):
-        from trend import Trend
+        from trading_core.trend import Trend
         # print("Trend check:", df.iloc[-1]["close"])
 
         return Trend.compute_trend_score(df)

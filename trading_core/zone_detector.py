@@ -1,6 +1,6 @@
 # analysis/zone_detector.py
 
-from zones import Zones
+from trading_core.zones import Zones
 
 class ZoneDetector:
 

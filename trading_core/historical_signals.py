@@ -1,9 +1,9 @@
-from patterns import Patterns
-from volatility import Volatility
-from trend import Trend
-from zone_detector import ZoneDetector
-from confluence import ConfluenceEngine
-from zones import Zones
+from trading_core.patterns import Patterns
+from trading_core.volatility import Volatility
+from trading_core.trend import Trend
+from trading_core.zone_detector import ZoneDetector
+from trading_core.confluence import ConfluenceEngine
+from trading_core.zones import Zones
 
 
 
