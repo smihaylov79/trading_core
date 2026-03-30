@@ -12,49 +12,46 @@ from trading_core.confluence import ConfluenceEngine
 
 class HistoricalSignalGenerator:
 
-    def __init__(self, symbol_cfg: Dict[str, Any], left=3, right=3, tolerance=0.0005):
+    def __init__(self, symbol_cfg: Dict[str, Any]):
         self.symbol_cfg = symbol_cfg
-        self.left = left
-        self.right = right
-        self.tolerance = tolerance
 
     def generate(self, df: pd.DataFrame, symbol: str, timeframe: str) -> pd.DataFrame:
         df = df.copy()
 
-        # ---------------------------------------------------------
-        # PHASE 1 — PRECOMPUTE EVERYTHING ONCE
-        # ---------------------------------------------------------
+        # -----------------------------
+        # Extract configs
+        # -----------------------------
+        zones_cfg = self.symbol_cfg.get("zones", {})
+        left = zones_cfg.get("left", 3)
+        right = zones_cfg.get("right", 3)
+        tolerance = float(zones_cfg.get("tolerance", 0.0005))
 
-        # Candle anatomy
-        df = SignalBuilder.compute_candle_anatomy(df)
-
-        # Patterns
-        df = Patterns.detect_all(df)
-
-        # Volatility
-        vol_cfg = {
+        vol_cfg = self.symbol_cfg.get("volatility", {
             "atr_period": 14,
             "percentile_window": 200,
             "expansion_factor": 1.5,
             "compression_factor": 0.7,
-        }
-        df = Volatility.compute_all(df, vol_cfg)
+        })
 
-        # Swings
-        df = Zones.find_swings(df, left=self.left, right=self.right)
-
-        # Trend
-        trend_cfg = {
+        trend_cfg = self.symbol_cfg.get("trend", {
             "ma_fast": 20,
             "ma_slow": 50,
-            "swing_high_col": "is_swing_high",
-            "swing_low_col": "is_swing_low",
             "swing_lookback": 10,
-        }
+        })
+        trend_cfg["swing_high_col"] = "is_swing_high"
+        trend_cfg["swing_low_col"] = "is_swing_low"
+
+        # -----------------------------
+        # PHASE 1 — PRECOMPUTE ONCE
+        # -----------------------------
+        df = SignalBuilder.compute_candle_anatomy(df)
+        df = Patterns.detect_all(df)
+        df = Volatility.compute_all(df, vol_cfg)
+        df = Zones.find_swings(df, left=left, right=right)
         df = Trend.compute_all(df, trend_cfg)
 
-        # Zones (computed once)
-        zones = ZoneDetector.detect_zones(df, self.left, self.right, self.tolerance)
+        # Zones computed once
+        zones = ZoneDetector.detect_zones(df, left, right, tolerance)
 
         # Prepare output columns
         df["pattern_score"] = 0
@@ -65,9 +62,9 @@ class HistoricalSignalGenerator:
         df["confidence"] = 0.0
         df["signal"] = 0
 
-        # ---------------------------------------------------------
-        # PHASE 2 — LOOP ONLY FOR CONFLUENCE + SIGNAL
-        # ---------------------------------------------------------
+        # -----------------------------
+        # PHASE 2 — LOOP FOR CONFLUENCE
+        # -----------------------------
         for i in range(len(df)):
             window = df.iloc[: i + 1]
 
@@ -75,7 +72,7 @@ class HistoricalSignalGenerator:
                 window,
                 self.symbol_cfg,
                 zones,
-                self.tolerance
+                tolerance
             )
 
             df.at[df.index[i], "pattern_score"] = conf["pattern_score"]
@@ -84,10 +81,8 @@ class HistoricalSignalGenerator:
             df.at[df.index[i], "trend_score"] = conf["trend_score"]
             df.at[df.index[i], "total_score"] = conf["total"]
 
-            # Confidence
             df.at[df.index[i], "confidence"] = abs(conf["total"]) / 6
 
-            # Signal
             if conf["total"] > 0:
                 df.at[df.index[i], "signal"] = 1
             elif conf["total"] < 0:
@@ -96,6 +91,106 @@ class HistoricalSignalGenerator:
                 df.at[df.index[i], "signal"] = 0
 
         return df
+
+
+# import pandas as pd
+# from typing import Dict, Any
+#
+# from trading_core.signal_builder import SignalBuilder
+# from trading_core.patterns import Patterns
+# from trading_core.volatility import Volatility
+# from trading_core.trend import Trend
+# from trading_core.zones import Zones
+# from trading_core.zone_detector import ZoneDetector
+# from trading_core.confluence import ConfluenceEngine
+#
+#
+# class HistoricalSignalGenerator:
+#
+#     def __init__(self, symbol_cfg: Dict[str, Any], left=3, right=3, tolerance=0.0005):
+#         self.symbol_cfg = symbol_cfg
+#         self.left = left
+#         self.right = right
+#         self.tolerance = tolerance
+#
+#     def generate(self, df: pd.DataFrame, symbol: str, timeframe: str) -> pd.DataFrame:
+#         df = df.copy()
+#
+#         # ---------------------------------------------------------
+#         # PHASE 1 — PRECOMPUTE EVERYTHING ONCE
+#         # ---------------------------------------------------------
+#
+#         # Candle anatomy
+#         df = SignalBuilder.compute_candle_anatomy(df)
+#
+#         # Patterns
+#         df = Patterns.detect_all(df)
+#
+#         # Volatility
+#         vol_cfg = {
+#             "atr_period": 14,
+#             "percentile_window": 200,
+#             "expansion_factor": 1.5,
+#             "compression_factor": 0.7,
+#         }
+#         df = Volatility.compute_all(df, vol_cfg)
+#
+#         # Swings
+#         df = Zones.find_swings(df, left=self.left, right=self.right)
+#
+#         # Trend
+#         trend_cfg = {
+#             "ma_fast": 20,
+#             "ma_slow": 50,
+#             "swing_high_col": "is_swing_high",
+#             "swing_low_col": "is_swing_low",
+#             "swing_lookback": 10,
+#         }
+#         df = Trend.compute_all(df, trend_cfg)
+#
+#         # Zones (computed once)
+#         zones = ZoneDetector.detect_zones(df, self.left, self.right, self.tolerance)
+#
+#         # Prepare output columns
+#         df["pattern_score"] = 0
+#         df["zone_score"] = 0
+#         df["volatility_score"] = 0
+#         df["trend_score"] = 0
+#         df["total_score"] = 0
+#         df["confidence"] = 0.0
+#         df["signal"] = 0
+#
+#         # ---------------------------------------------------------
+#         # PHASE 2 — LOOP ONLY FOR CONFLUENCE + SIGNAL
+#         # ---------------------------------------------------------
+#         for i in range(len(df)):
+#             window = df.iloc[: i + 1]
+#
+#             conf = ConfluenceEngine.compute_total(
+#                 window,
+#                 self.symbol_cfg,
+#                 zones,
+#                 self.tolerance
+#             )
+#
+#             df.at[df.index[i], "pattern_score"] = conf["pattern_score"]
+#             df.at[df.index[i], "zone_score"] = conf["zone_score"]
+#             df.at[df.index[i], "volatility_score"] = conf["volatility_score"]
+#             df.at[df.index[i], "trend_score"] = conf["trend_score"]
+#             df.at[df.index[i], "total_score"] = conf["total"]
+#
+#             # Confidence
+#             df.at[df.index[i], "confidence"] = abs(conf["total"]) / 6
+#
+#             # Signal
+#             if conf["total"] > 0:
+#                 df.at[df.index[i], "signal"] = 1
+#             elif conf["total"] < 0:
+#                 df.at[df.index[i], "signal"] = -1
+#             else:
+#                 df.at[df.index[i], "signal"] = 0
+#
+#         return df
 
 
 

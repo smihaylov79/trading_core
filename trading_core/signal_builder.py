@@ -121,61 +121,87 @@ class SignalBuilder:
     # ---------------------------------------------------------
     @staticmethod
     def compute_all(
-        df: pd.DataFrame,
-        symbol: str,
-        timeframe: str,
-        symbol_cfg: Dict[str, Any],
-        left: int = 3,
-        right: int = 3,
-        tolerance: float = 0.0005,
-        vol_cfg: Optional[Dict[str, Any]] = None,
-        trend_cfg: Optional[Dict[str, Any]] = None,
-        extra_metadata: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        """
-        Compute EVERYTHING for the last candle of df.
-        This is used by both historical and live generators.
-        """
-
+            df,
+            symbol,
+            timeframe,
+            symbol_cfg,
+            left=None,
+            right=None,
+            tolerance=None,
+            extra_metadata=None,
+    ):
         df = df.copy()
 
+        # -----------------------------
+        # ZONES CONFIG
+        # -----------------------------
+        zones_cfg = symbol_cfg.get("zones", {})
+        left = left if left is not None else zones_cfg.get("left", 3)
+        right = right if right is not None else zones_cfg.get("right", 3)
+        tolerance = tolerance if tolerance is not None else zones_cfg.get("tolerance", 0.0005)
+        tolerance = float(tolerance)
+
+        # -----------------------------
+        # VOLATILITY CONFIG
+        # -----------------------------
+        vol_cfg = symbol_cfg.get("volatility", {
+            "atr_period": 14,
+            "percentile_window": 200,
+            "expansion_factor": 1.5,
+            "compression_factor": 0.7,
+        })
+
+        # -----------------------------
+        # TREND CONFIG
+        # -----------------------------
+        trend_cfg = symbol_cfg.get("trend", {
+            "ma_fast": 20,
+            "ma_slow": 50,
+            "swing_lookback": 10,
+        })
+
+        # Always enforce swing column names
+        trend_cfg["swing_high_col"] = "is_swing_high"
+        trend_cfg["swing_low_col"] = "is_swing_low"
+
+        # -----------------------------
         # 1) Candle anatomy
+        # -----------------------------
         df = SignalBuilder.compute_candle_anatomy(df)
 
+        # -----------------------------
         # 2) Patterns
+        # -----------------------------
         df = SignalBuilder.compute_patterns(df)
 
+        # -----------------------------
         # 3) Volatility
-        if vol_cfg is None:
-            vol_cfg = {
-                "atr_period": 14,
-                "percentile_window": 200,
-                "expansion_factor": 1.5,
-                "compression_factor": 0.7,
-            }
+        # -----------------------------
         df = SignalBuilder.compute_volatility(df, vol_cfg)
 
+        # -----------------------------
         # 4) Swings
+        # -----------------------------
         df = SignalBuilder.compute_swings(df, left, right)
 
+        # -----------------------------
         # 5) Trend
-        if trend_cfg is None:
-            trend_cfg = {
-                "ma_fast": 20,
-                "ma_slow": 50,
-                "swing_high_col": "is_swing_high",
-                "swing_low_col": "is_swing_low",
-                "swing_lookback": 10,
-            }
+        # -----------------------------
         df = SignalBuilder.compute_trend(df, trend_cfg)
 
+        # -----------------------------
         # 6) Zones
+        # -----------------------------
         zones = SignalBuilder.compute_zones(df, left, right, tolerance)
 
+        # -----------------------------
         # 7) Confluence (last candle)
+        # -----------------------------
         confluence = SignalBuilder.compute_confluence(df, symbol_cfg, zones, tolerance)
 
+        # -----------------------------
         # 8) Build final signal dict
+        # -----------------------------
         return SignalBuilder.build_signal(
             df=df,
             symbol=symbol,
@@ -183,3 +209,70 @@ class SignalBuilder:
             confluence=confluence,
             extra_metadata=extra_metadata,
         )
+
+        # then use vol_cfg, trend_cfg, left/right/tolerance as before
+
+    # @staticmethod
+    # def compute_all(
+    #     df: pd.DataFrame,
+    #     symbol: str,
+    #     timeframe: str,
+    #     symbol_cfg: Dict[str, Any],
+    #     left: int = 3,
+    #     right: int = 3,
+    #     tolerance: float = 0.0005,
+    #     vol_cfg: Optional[Dict[str, Any]] = None,
+    #     trend_cfg: Optional[Dict[str, Any]] = None,
+    #     extra_metadata: Optional[Dict[str, Any]] = None,
+    # ) -> Dict[str, Any]:
+    #     """
+    #     Compute EVERYTHING for the last candle of df.
+    #     This is used by both historical and live generators.
+    #     """
+    #
+    #     df = df.copy()
+    #
+    #     # 1) Candle anatomy
+    #     df = SignalBuilder.compute_candle_anatomy(df)
+    #
+    #     # 2) Patterns
+    #     df = SignalBuilder.compute_patterns(df)
+    #
+    #     # 3) Volatility
+    #     if vol_cfg is None:
+    #         vol_cfg = {
+    #             "atr_period": 14,
+    #             "percentile_window": 200,
+    #             "expansion_factor": 1.5,
+    #             "compression_factor": 0.7,
+    #         }
+    #     df = SignalBuilder.compute_volatility(df, vol_cfg)
+    #
+    #     # 4) Swings
+    #     df = SignalBuilder.compute_swings(df, left, right)
+    #
+    #     # 5) Trend
+    #     if trend_cfg is None:
+    #         trend_cfg = {
+    #             "ma_fast": 20,
+    #             "ma_slow": 50,
+    #             "swing_high_col": "is_swing_high",
+    #             "swing_low_col": "is_swing_low",
+    #             "swing_lookback": 10,
+    #         }
+    #     df = SignalBuilder.compute_trend(df, trend_cfg)
+    #
+    #     # 6) Zones
+    #     zones = SignalBuilder.compute_zones(df, left, right, tolerance)
+    #
+    #     # 7) Confluence (last candle)
+    #     confluence = SignalBuilder.compute_confluence(df, symbol_cfg, zones, tolerance)
+    #
+    #     # 8) Build final signal dict
+    #     return SignalBuilder.build_signal(
+    #         df=df,
+    #         symbol=symbol,
+    #         timeframe=timeframe,
+    #         confluence=confluence,
+    #         extra_metadata=extra_metadata,
+    #     )
