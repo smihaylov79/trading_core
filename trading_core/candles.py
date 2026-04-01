@@ -1,4 +1,4 @@
-# analysis/candles.py
+# trading_core/candles.py
 
 import pandas as pd
 

@@ -102,6 +102,8 @@ class SignalBuilder:
         if extra_metadata:
             metadata.update(extra_metadata)
 
+        zones = metadata.get("zones", [])
+
         return {
             "symbol": symbol,
             "direction": direction,
@@ -114,6 +116,7 @@ class SignalBuilder:
             "price": last["close"],
             "timeframe": str(timeframe),
             "metadata": metadata,
+            'zones': zones,
         }
 
     # ---------------------------------------------------------
@@ -202,6 +205,9 @@ class SignalBuilder:
         # -----------------------------
         # 8) Build final signal dict
         # -----------------------------
+        extra_metadata = extra_metadata or {}
+        extra_metadata["zones"] = zones
+
         return SignalBuilder.build_signal(
             df=df,
             symbol=symbol,
